@@ -9,12 +9,12 @@ import Foundation
 import UIKit
 
 class ContentSynthesizer {
-    private let apiManager: OpenAIAPIManagerProtocol
+    private let summarizationManager: SummarizationManagerProtocol
     private let speechSynthesizer: SpeechSynthesizerProtocol
 
-    init(apiManager: OpenAIAPIManagerProtocol = OpenAIAPIManager.shared,
+    init(summarizationManager: SummarizationManagerProtocol = FoundationModelSummarizer.shared,
          speechSynthesizer: SpeechSynthesizerProtocol = SpeechSynthesizer.shared) {
-        self.apiManager = apiManager
+        self.summarizationManager = summarizationManager
         self.speechSynthesizer = speechSynthesizer
     }
 
@@ -24,7 +24,7 @@ class ContentSynthesizer {
             return
         }
 
-        apiManager.summarizeURL(url: urlString) { result in
+        summarizationManager.summarizeURL(url: urlString) { result in
             switch result {
             case .success(let summary):
                 self.speechSynthesizer.synthesizeSpeech(from: summary) { synthesisResult in

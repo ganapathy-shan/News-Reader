@@ -12,14 +12,15 @@ import XCTest
 class ContentSynthesizerTests: XCTestCase {
     func testSynthesizeContent_withValidURL_callsAPIAndSynthesizer() {
         // Arrange
-        let mockAPIManager = MockOpenAIAPIManager()
+        let mockSummarizationManager = MockSummarizationManager()
         let mockSpeechSynthesizer = MockSpeechSynthesizer()
         
-        let contentSynthesizer = ContentSynthesizer(apiManager: mockAPIManager, speechSynthesizer: mockSpeechSynthesizer)
+        let contentSynthesizer = ContentSynthesizer(summarizationManager: mockSummarizationManager,
+                                                    speechSynthesizer: mockSpeechSynthesizer)
 
         let urlString = "https://example.com"
         let summary = "Mock summary"
-        mockAPIManager.mockSummary = summary
+        mockSummarizationManager.mockSummary = summary
 
         let expectation = XCTestExpectation(description: "Synthesis completes successfully")
 
@@ -27,7 +28,7 @@ class ContentSynthesizerTests: XCTestCase {
         contentSynthesizer.synthesizeContent(from: urlString) { result in
             switch result {
             case .success:
-                XCTAssertEqual(mockAPIManager.lastURL, urlString, "API Manager should be called with the correct URL")
+                XCTAssertEqual(mockSummarizationManager.lastURL, urlString, "Summarization manager should be called with the correct URL")
                 XCTAssertEqual(mockSpeechSynthesizer.lastSynthesizedText, summary, "Speech Synthesizer should be called with the correct summary")
                 expectation.fulfill()
             case .failure:

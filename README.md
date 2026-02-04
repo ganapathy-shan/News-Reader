@@ -49,15 +49,16 @@ The app uses pagination to load articles dynamically, integrates SDWebImage for 
 
 ## Configure API and AWSPolly
 
-### 1\. OpenAI API Key
+### 1\. Apple Foundation Models
 
-**How to Get:**
+Summarization runs on-device using Apple Foundation Models. No external API key
+is required, but the device must support Apple Intelligence and have the model
+available.
 
-1.  Visit the OpenAI website: <https://platform.openai.com/signup>.
-2.  Sign up for an account or log in if you already have one.
-3.  Go to the **API Keys** section from your account settings: OpenAI API Keys.
-4.  Click **Create new secret key**.
-5.  Copy the generated API key.
+### 1a\. Optional OpenAI API Key (cloud summarizer)
+
+If you want to use the cloud-based `OpenAPISummarizer`, provide an OpenAI API
+key in `config.plist` under `OpenAPIKey`.
 
 * * * * *
 
@@ -118,23 +119,27 @@ The app uses pagination to load articles dynamically, integrates SDWebImage for 
 
 #### Add Keys:
 
-Create 3 rows in `config.plist` with following keys
-**OpenAPIKey**
+Create 2 required rows in `config.plist` with following keys
 **NewsAPIKey**
 **AWSPoolID**
+
+Optional:
+**OpenAPIKey** (only needed if you use `OpenAPISummarizer`)
 
 #### Update the Key Values:
 
 -   Replace the `value` for:
-    -   **OpenAPIKey**: Paste the OpenAI API key.
     -   **NewsAPIKey**: Paste the NewsAPI key.
-    -   **AWSPoolID**: Enter your Cognito Identity Pool ID.        
+    -   **AWSPoolID**: Enter your Cognito Identity Pool ID.
+    -   **OpenAPIKey**: Paste the OpenAI API key (optional).        
 
 Technologies Used
 -----------------
 
 -   **Swift**: The primary language used for development.
 -   **AWS Polly**: Used for text-to-speech synthesis to read news articles summary aloud.
+-   **Apple Foundation Models**: Used for on-device content summarization.
+-   **OpenAI (optional)**: Used by `OpenAPISummarizer` if configured.
 -   **SDWebImage**: Used for asynchronous image loading and caching.
 -   **Core Data**: Used for caching and local storage.
 -   **CocoaPods**: Dependency management for libraries like AWSMobileClient and AWSPolly.
@@ -197,7 +202,7 @@ Key functionalities:
 
 ### 5\. `WebContentExtractor`
 
-`WebContentExtractor` is a utility responsible for extracting clean content from URLs. When a user selects an article, the extractor fetches the raw content (e.g., the article body) from the web page. The cleaned-up content is then passed to the summarizer (OpenAI API) for summarization or directly displayed in the app.
+`WebContentExtractor` is a utility responsible for extracting clean content from URLs. When a user selects an article, the extractor fetches the raw content (e.g., the article body) from the web page. The cleaned-up content is then passed to the summarizer (Apple Foundation Models by default, or OpenAI if configured) for summarization or directly displayed in the app.
 
 Key functionalities:
 
@@ -236,7 +241,8 @@ The architecture of the News Reader app follows **Clean Architecture** princip
 
 ### Service Layer
 
--   **OpenAIAPIManager:** A service for interacting with OpenAI's API to summarize article content. After extracting raw content via the **WebContentExtractor**, the summary is sent to OpenAI for processing and returned to the app for display.
+-   **FoundationModelSummarizer:** A service for summarizing article content on-device using Apple Foundation Models. After extracting raw content via the **WebContentExtractor**, the summary is generated locally and returned to the app for display.
+-   **OpenAPISummarizer:** An optional cloud-based summarizer that uses OpenAI for summary generation.
 -   **FeedService:** A service responsible for handling network requests to fetch articles. It interacts with APIs to fetch articles and integrates with the **CacheManager** to cache articles for offline use.
 -   **CacheManager:** Manages caching operations by saving and retrieving articles to and from **Core Data**. It ensures articles are available even when the app is offline.
 -   **ContentSynthesizer:** Handles converting text into speech using AWS Polly. It is a service that manages the interaction with AWS and playback functionality for articles.
@@ -249,17 +255,17 @@ The architecture of the News Reader app follows **Clean Architecture** princip
 
 ### Data Flow
 
-1.  **Fetching Data:** The **FeedViewModel** interacts with **FeedService** to fetch articles from a remote API. If no network is available, **CacheManager** retrieves articles from **Core Data**. The **WebContentExtractor** fetches and cleans article content, which is either displayed directly or passed to **OpenAIAPIManager** for summarization.
+1.  **Fetching Data:** The **FeedViewModel** interacts with **FeedService** to fetch articles from a remote API. If no network is available, **CacheManager** retrieves articles from **Core Data**. The **WebContentExtractor** fetches and cleans article content, which is either displayed directly or passed to **FoundationModelSummarizer** (or `OpenAPISummarizer` if configured) for summarization.
 2.  **Updating the UI:** Once new data is fetched, the **FeedViewModel** updates the **FeedViewController** with the articles, which are then displayed in a table view.
 3.  **Handling Errors:** If errors occur during data fetching (e.g., network errors), the **FeedViewModel** handles them and updates the **FeedViewController** with appropriate error messages.
 4.  **Text-to-Speech:** When the user taps the speaker button on a **FeedCell**, the **FeedViewModel** communicates with **ContentSynthesizer**, which uses AWS Polly to convert the article text to speech and manage playback.
 
 ### Clean Architecture Flow
 
-1.  **Model Layer:** Includes **FeedItem**, **CacheManager**, **FeedService**, **CoreDataManager**, and **OpenAIAPIManager**. These components handle data storage, networking, content extraction, and API calls.
+1.  **Model Layer:** Includes **FeedItem**, **CacheManager**, **FeedService**, **CoreDataManager**, and **FoundationModelSummarizer**. These components handle data storage, networking, content extraction, and API calls. `OpenAPISummarizer` is optional.
 2.  **ViewModel Layer:** The **FeedViewModel** manages data fetching, dynamic pagination, and updates the UI. It interacts with the **ContentSynthesizer** for text-to-speech conversion and uses the **FeedService** for data fetching.
 3.  **View Layer:** **FeedViewController** and **FeedCell** manage UI presentation. The view layer listens for updates from the **FeedViewModel** and binds the data to UI elements.
-4.  **Service Layer:** The **FeedService**, **OpenAIAPIManager**, **CacheManager**, **ContentSynthesizer**, and **CoreDataManager** provide necessary services like data fetching, content summarization, caching, and text-to-speech functionality. These services are separated from the ViewModel and View, promoting better testability and reusability.
+4.  **Service Layer:** The **FeedService**, **FoundationModelSummarizer**, **OpenAPISummarizer** (optional), **CacheManager**, **ContentSynthesizer**, and **CoreDataManager** provide necessary services like data fetching, content summarization, caching, and text-to-speech functionality. These services are separated from the ViewModel and View, promoting better testability and reusability.
 5.  **Coordinator Layer:** The **AppCoordinator** and **FeedCoordinator** manage the app's navigation, decoupling the navigation logic from the view controllers and making the flow more manageable.
 
 The app also supports **asynchronous data fetching** using Swift's concurrency features, ensuring that the UI remains responsive while data is being loaded in the background.

@@ -1,19 +1,14 @@
 //
-//  OpenAIAPIManager.swift
+//  OpenAPISummarizer.swift
 //  News Reader
 //
-//  Created by Shanmuganathan on 14/12/24.
+//  Created by Shanmuganathan on 04/02/26.
 //
-
 
 import Foundation
 
-protocol OpenAIAPIManagerProtocol {
-    func summarizeURL(url: String, completion: @escaping (Result<String, Error>) -> Void)
-}
-
-class OpenAIAPIManager : OpenAIAPIManagerProtocol {
-    static let shared = OpenAIAPIManager()
+class OpenAPISummarizer: SummarizationManagerProtocol {
+    static let shared = OpenAPISummarizer()
     private var openAIAPIKey = ""
 
     private var webContentExtractor: WebContentExtractorProtocol
@@ -22,18 +17,26 @@ class OpenAIAPIManager : OpenAIAPIManagerProtocol {
 
     init(webContentExtractor: WebContentExtractorProtocol = WebContentExtractor.shared,
          summaryCacheManager: SummaryCacheManagerProtocol = SummaryCacheManager.shared,
-         session: URLSessionProtocol = URLSession.shared) {
+         session: URLSessionProtocol = URLSession.shared,
+         apiKey: String? = nil) {
         self.webContentExtractor = webContentExtractor
         self.summaryCacheManager = summaryCacheManager
         self.session = session
-        if let apiKey = ApiKeyManager.shared.getApiKey(for: "OpenAPIKey") {
+        if let apiKey = apiKey {
+            openAIAPIKey = apiKey
+        } else if let apiKey = ApiKeyManager.shared.getApiKey(for: "OpenAPIKey") {
             openAIAPIKey = apiKey
         }
     }
 
     // Fetch and summarize content from URL
     func summarizeURL(url: String, completion: @escaping (Result<String, Error>) -> Void) {
-        self.webContentExtractor.fetchContent(from: url) { [weak self] result in
+        if let cachedSummary = summaryCacheManager.getCachedSummary(forURL: url) {
+            completion(.success(cachedSummary))
+            return
+        }
+
+        webContentExtractor.fetchContent(from: url) { [weak self] result in
             switch result {
             case .success(let content):
                 self?.summarize(text: content, url: url, completion: completion)
@@ -44,19 +47,16 @@ class OpenAIAPIManager : OpenAIAPIManagerProtocol {
     }
 
     func summarize(text: String, url: String, completion: @escaping (Result<String, Error>) -> Void) {
-        // Check if the summary is already cached
-        if let cachedSummary = self.summaryCacheManager.getCachedSummary(forURL: url) {
+        if let cachedSummary = summaryCacheManager.getCachedSummary(forURL: url) {
             completion(.success(cachedSummary))
             return
         }
-        
+
         guard !openAIAPIKey.isEmpty else {
             completion(.failure(NSError(domain: "OpenAI", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid API Key"])))
             return
         }
-        
 
-        // If not cached, fetch from OpenAI
         guard let openAIURL = URL(string: "https://api.openai.com/v1/chat/completions") else {
             completion(.failure(NSError(domain: "OpenAI", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])))
             return
@@ -89,7 +89,6 @@ class OpenAIAPIManager : OpenAIAPIManagerProtocol {
             "temperature": 0.7
         ]
 
-
         guard let bodyData = try? JSONSerialization.data(withJSONObject: requestBody) else {
             completion(.failure(NSError(domain: "OpenAI", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to encode request body"])))
             return
@@ -100,8 +99,8 @@ class OpenAIAPIManager : OpenAIAPIManagerProtocol {
         request.addValue("Bearer \(openAIAPIKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = bodyData
-        
-        let task = session.dataTask(with: request) { data, response, error in
+
+        let task = session.dataTask(with: request) { [weak self] data, _, error in
             if let error = error {
                 completion(.failure(error))
                 return
@@ -112,18 +111,12 @@ class OpenAIAPIManager : OpenAIAPIManagerProtocol {
                 return
             }
 
-            // Log the raw response for debugging
-            if let rawResponse = String(data: data, encoding: .utf8) {
-                print("Raw Response: \(rawResponse)")
-            }
-
             do {
                 if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
                     if let choices = json["choices"] as? [[String: Any]],
                        let message = choices.first?["message"] as? [String: Any],
                        let summary = message["content"] as? String {
-                        // Cache the summary
-                        self.summaryCacheManager.cacheSummary(summary, forURL: url)
+                        self?.summaryCacheManager.cacheSummary(summary, forURL: url)
                         completion(.success(summary.trimmingCharacters(in: .whitespacesAndNewlines)))
                     } else {
                         let errorInfo = json["error"] as? [String: Any]
