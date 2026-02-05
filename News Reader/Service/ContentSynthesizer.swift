@@ -13,7 +13,7 @@ class ContentSynthesizer {
     private let speechSynthesizer: SpeechSynthesizerProtocol
 
     init(summarizationManager: SummarizationManagerProtocol = FoundationModelSummarizer.shared,
-         speechSynthesizer: SpeechSynthesizerProtocol = SpeechSynthesizer.shared) {
+         speechSynthesizer: SpeechSynthesizerProtocol = AppleSpeechSynthesizer.shared) {
         self.summarizationManager = summarizationManager
         self.speechSynthesizer = speechSynthesizer
     }

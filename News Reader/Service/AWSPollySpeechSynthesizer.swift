@@ -1,10 +1,9 @@
 //
-//  SpeechSynthesizer.swift
+//  AWSPollySpeechSynthesizer.swift
 //  News Reader
 //
 //  Created by Shanmuganathan on 14/12/24.
 //
-
 
 import Foundation
 import AVFoundation
@@ -14,31 +13,30 @@ protocol SpeechSynthesizerProtocol {
     func synthesizeSpeech(from text: String, completion: @escaping (Result<Void, Error>) -> Void)
 }
 
-class SpeechSynthesizer : SpeechSynthesizerProtocol {
+class AWSPollySpeechSynthesizer: SpeechSynthesizerProtocol {
     private var audioPlayer: AVPlayer?
 
-    static let shared = SpeechSynthesizer()
-    var identityPoolId : String = ""
+    static let shared = AWSPollySpeechSynthesizer()
+    var identityPoolId: String = ""
 
     private init() {
-        
-           if let poolId = ApiKeyManager.shared.getApiKey(for: "AWSPoolID") {
-               identityPoolId = poolId
-           }
-        
-           // Manually configure AWS credentials and region
-           let credentialsProvider = AWSCognitoCredentialsProvider(
-               regionType: .USWest2, // Set your AWS region (example: us-west-2)
-               identityPoolId: identityPoolId
-           )
+        if let poolId = ApiKeyManager.shared.getApiKey(for: "AWSPoolID") {
+            identityPoolId = poolId
+        }
 
-           let configuration = AWSServiceConfiguration(
-               region: .USWest2, // Set your Polly region (example: us-west-2)
-               credentialsProvider: credentialsProvider
-           )
+        // Manually configure AWS credentials and region
+        let credentialsProvider = AWSCognitoCredentialsProvider(
+            regionType: .USWest2, // Set your AWS region (example: us-west-2)
+            identityPoolId: identityPoolId
+        )
 
-           AWSServiceManager.default().defaultServiceConfiguration = configuration
-       }
+        let configuration = AWSServiceConfiguration(
+            region: .USWest2, // Set your Polly region (example: us-west-2)
+            credentialsProvider: credentialsProvider
+        )
+
+        AWSServiceManager.default().defaultServiceConfiguration = configuration
+    }
 
     /// Synthesize and play speech for the given text
     /// - Parameters:
@@ -59,9 +57,9 @@ class SpeechSynthesizer : SpeechSynthesizerProtocol {
             input.voiceId = .amy
             input.textType = .ssml
             input.engine = .neural
-            
+
             let builder = AWSPollySynthesizeSpeechURLBuilder.default().getPreSignedURL(input)
-            
+
             builder.continueWith { [weak self] task -> Any? in
                 if let url = task.result {
                     DispatchQueue.main.async {

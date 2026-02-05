@@ -97,28 +97,25 @@ private struct UnavailableSummaryGenerator: SummaryGeneratorProtocol {
 
 @available(iOS 26.0, *)
 private struct FoundationModelsSummaryGenerator: SummaryGeneratorProtocol {
-    private let model: SystemLanguageModel
-    private let instructions = """
-    You are a helpful assistant that summarizes articles into concise and engaging narratives for a news reader application.
-    """
-
-    init(model: SystemLanguageModel = .default) {
-        self.model = model
-    }
-
+    @MainActor
     func generateSummary(from text: String) async throws -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw SummarizationError.emptyContent
         }
 
-        guard model.isAvailable else {
-            let reason = availabilityReasonDescription(model.availability)
-            throw SummarizationError.modelUnavailable(reason: reason)
+        let model = SystemLanguageModel.default
+        switch model.availability {
+        case .available:
+            break
+        case .unavailable(let reason):
+            throw SummarizationError.modelUnavailable(reason: String(describing: reason))
         }
 
-        let session = LanguageModelSession(model: model, instructions: instructions)
+        let session = LanguageModelSession(model: model)
         let prompt = """
+        You are a helpful assistant that summarizes articles into concise and engaging narratives for a news reader application.
+
         Summarize the following article into a concise and engaging narrative suitable for a news reader application. Ensure the summary flows naturally, retains the key details, and uses a tone that sounds professional yet conversational. Avoid technical jargon unless necessary and prioritize readability and coherence.
 
         ### Article Content:
@@ -136,12 +133,4 @@ private struct FoundationModelsSummaryGenerator: SummaryGeneratorProtocol {
         return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func availabilityReasonDescription(_ availability: SystemLanguageModel.Availability) -> String {
-        switch availability {
-        case .available:
-            return "unknown reason"
-        case .unavailable(let reason):
-            return String(describing: reason)
-        }
-    }
 }

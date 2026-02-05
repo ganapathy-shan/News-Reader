@@ -10,7 +10,7 @@ import XCTest
 
 final class SpeechSynthesizerTests: XCTestCase {
     func testSynthesizeSpeechSuccess() {
-        let synthesizer = SpeechSynthesizer.shared
+        let synthesizer = AppleSpeechSynthesizer.shared
         let expectation = self.expectation(description: "Speech synthesis should complete successfully")
 
         synthesizer.synthesizeSpeech(from: "Hello, world!") { result in
